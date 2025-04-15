@@ -1,10 +1,3 @@
-// ARQUIVO: workout_history_screen.dart
-// MELHORIAS IMPLEMENTADAS:
-// 1. Melhor organização do código em métodos menores
-// 2. Adição de feedback visual
-// 3. Melhor tratamento de dados nulos
-// 4. Melhorias na exibição dos dados
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/workout_model.dart';
@@ -27,7 +20,12 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
     super.initState();
     _workoutModel = Provider.of<WorkoutModel>(context, listen: false);
     _searchController.addListener(_filterWorkouts);
-    _filterWorkouts(); // Carrega os dados imediatamente
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _filteredWorkouts = _workoutModel.workouts
+          .where((w) => w.completedAt != null)
+          .toList();
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -43,19 +41,33 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
   }
 
   void _filterWorkouts() {
-    final completedWorkouts = _workoutModel.workouts.where((w) => w.completedAt != null);
+    // 1. Garanta que está acessando os dados corretamente
+    final allCompletedWorkouts = _workoutModel.workoutHistory
+        .map((history) => history.workout)
+        .toList();
 
+    // 2. Aplique os filtros corretamente
     setState(() {
-      _filteredWorkouts = completedWorkouts.where((workout) {
-        final matchesSearch = workout.title.toLowerCase().contains(
-          _searchController.text.toLowerCase(),
-        );
+      _filteredWorkouts = allCompletedWorkouts.where((workout) {
+        // Verifica se o workout foi completado (só por segurança)
+        if (workout.completedAt == null) return false;
+
+        // Filtro de texto
+        final matchesSearch = _searchController.text.isEmpty ||
+            workout.title.toLowerCase().contains(
+              _searchController.text.toLowerCase(),
+            );
+
+        // Filtro de data
         final matchesDate = _selectedDate == null ||
             (workout.completedAt!.year == _selectedDate!.year &&
                 workout.completedAt!.month == _selectedDate!.month &&
                 workout.completedAt!.day == _selectedDate!.day);
+
         return matchesSearch && matchesDate;
-      }).toList();
+      }).toList()
+      // 3. Ordena do mais recente para o mais antigo
+        ..sort((a, b) => b.completedAt!.compareTo(a.completedAt!));
     });
   }
 
@@ -65,26 +77,12 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
       initialDate: DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Colors.white,
-              onPrimary: Colors.black,
-              surface: Colors.grey,
-              onSurface: Colors.white,
-            ),
-            dialogBackgroundColor: Colors.grey[900],
-          ),
-          child: child!,
-        );
-      },
     );
 
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
-        _filterWorkouts();
+        _filterWorkouts(); // Chamada ESSENCIAL para aplicar o filtro
       });
     }
   }
@@ -163,30 +161,30 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                workout.title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${workout.exercises.length} exercícios',
-                    style: const TextStyle(color: Colors.white70),
+                    workout.title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                  const Spacer(),
                   Text(
-                    '${workout.duration?.inMinutes ?? 0} minutos',
+                    '${workout.duration?.inMinutes ?? 0} min',
                     style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              Text(
+                '${workout.exercises.length} exercícios',
+                style: const TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 4),
               Text(
-                _formatDate(workout.completedAt!),
+                _formatDetailedDate(workout.completedAt!),
                 style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ],
@@ -194,6 +192,10 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
         ),
       ),
     );
+  }
+
+  String _formatDetailedDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} às ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   void _showWorkoutDetails(Workout workout) {
@@ -209,10 +211,6 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_filteredWorkouts.isEmpty) {
-      _filterWorkouts();
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Histórico de Treinos'),

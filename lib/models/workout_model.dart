@@ -166,6 +166,9 @@ class WorkoutModel extends ChangeNotifier {
   List<Workout> _workouts = [];
   List<WorkoutHistory> _workoutHistory = [];
 
+  // Adicione este getter para expor o histórico publicamente
+  List<WorkoutHistory> get workoutHistory => List.unmodifiable(_workoutHistory);
+
   final List<Exercise> _availableExercises = const [
     Exercise(name: "Puxada alta", muscleGroup: "Costas"),
     Exercise(name: "Puxada alta com triângulo", muscleGroup: "Costas"),
@@ -305,7 +308,7 @@ class WorkoutModel extends ChangeNotifier {
 
     await prefs.setStringList('workouts', workoutsJson);
     await prefs.setStringList('workout_history', historyJson);
-    notifyListeners();
+    notifyListeners(); // Isso é essencial para atualizar a UI
   }
 
   void addWorkout(Workout workout) {
@@ -322,26 +325,30 @@ class WorkoutModel extends ChangeNotifier {
   }
 
   void completeWorkout(Workout workout, Duration duration) {
-    final index = _workouts.indexWhere((w) =>
-    w.title == workout.title &&
-        w.createdAt == workout.createdAt
+    // Cria uma CÓPIA do workout atual com os dados de conclusão
+    final completedWorkout = workout.copyWith(
+      completedAt: DateTime.now(),
+      duration: duration,
     );
 
+    // Adiciona ao histórico (como novo registro)
+    _workoutHistory.add(WorkoutHistory(
+      workout: completedWorkout,
+      completedAt: DateTime.now(),
+      duration: duration,
+    ));
+
+    // Atualiza o workout na lista principal
+    final index = _workouts.indexWhere((w) =>
+    w.title == workout.title &&
+        w.createdAt == workout.createdAt);
+
     if (index != -1) {
-      _workouts[index] = workout.copyWith(
-        completedAt: DateTime.now(),
-        duration: duration,
-      );
-
-      // Adiciona ao histórico sem remover da lista de workouts
-      _workoutHistory.add(WorkoutHistory(
-        workout: workout,
-        completedAt: DateTime.now(),
-        duration: duration,
-      ));
-
-      _saveWorkouts();
+      _workouts[index] = completedWorkout;
     }
+
+    _saveWorkouts();
+    notifyListeners(); // Importante para atualizar a UI
   }
 
   void updateWorkout(Workout oldWorkout, Workout newWorkout) {
@@ -355,6 +362,31 @@ class WorkoutModel extends ChangeNotifier {
       _saveWorkouts();
     }
   }
+
+  WorkoutSet? getLastSetData(String exerciseName, int setNumber) {
+    // Ordena do mais recente para o mais antigo
+    final sortedHistory = _workoutHistory
+        .toList()
+        .reversed;
+
+    for (var history in sortedHistory) {
+      for (var exercise in history.workout.exercises) {
+        if (exercise.exercise.name == exerciseName && !exercise.isCardio) {
+          // Tenta encontrar a série exata
+          if (exercise.sets.length >= setNumber) {
+            return exercise.sets[setNumber - 1] as WorkoutSet;
+          }
+          // Se não encontrou, busca a série mais próxima
+          else if (exercise.sets.isNotEmpty) {
+            return exercise.sets.last as WorkoutSet;
+          }
+        }
+      }
+    }
+
+    return null; // Nenhum dado histórico encontrado
+  }
+
 
   Map<String, double> getLastWeights() {
     final lastWeights = <String, double>{};
@@ -403,6 +435,7 @@ class WorkoutModel extends ChangeNotifier {
 }
 
 class WorkoutHistory {
+  final String id;
   final Workout workout;
   final DateTime completedAt;
   final Duration duration;
@@ -411,7 +444,7 @@ class WorkoutHistory {
     required this.workout,
     required this.completedAt,
     required this.duration,
-  });
+  }) : id = DateTime.now().millisecondsSinceEpoch.toString();
 
   factory WorkoutHistory.fromJson(Map<String, dynamic> json) => WorkoutHistory(
     workout: Workout.fromJson(json['workout']),
@@ -420,6 +453,7 @@ class WorkoutHistory {
   );
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'workout': workout.toJson(),
     'completedAt': completedAt.toIso8601String(),
     'duration': duration.inSeconds,

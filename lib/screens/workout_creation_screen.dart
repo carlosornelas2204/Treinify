@@ -1,10 +1,3 @@
-// ARQUIVO: workout_creation_screen.dart
-// MELHORIAS IMPLEMENTADAS:
-// 1. Validação reforçada dos campos
-// 2. Feedback visual melhorado
-// 3. Organização do código em métodos menores
-// 4. Tratamento de erros aprimorado
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/workout_model.dart';

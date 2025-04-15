@@ -1,18 +1,24 @@
-// ARQUIVO: home_screen.dart
-// MELHORIAS IMPLEMENTADAS:
-// 1. Adição de feedback visual ao adicionar/editar fichas
-// 2. Melhor organização do código
-// 3. Adição de confirmação ao editar ficha
-// 4. Melhor tratamento de erros
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/workout_model.dart';
 import 'workout_creation_screen.dart';
 import 'workout_progress_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _alturaController = TextEditingController();
+  final _pesoController = TextEditingController();
+  final _idadeController = TextEditingController();
+  String _sexo = 'Masculino';
+  int _diasSemana = 3;
+  String _objetivo = 'Ganho de massa';
 
   Future<void> _navigateAndRefresh(
       BuildContext context,
@@ -33,6 +39,86 @@ class HomeScreen extends StatelessWidget {
         );
       }
     }
+  }
+
+  Widget _buildAIForm(BuildContext context) {
+    return Card(
+      color: Colors.grey[850],
+      margin: const EdgeInsets.all(12),
+      child: ExpansionTile(
+        title: const Text('Gerar ficha com IA'),
+        iconColor: Colors.white,
+        collapsedIconColor: Colors.white70,
+        childrenPadding: const EdgeInsets.all(16),
+        children: [
+          Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: _alturaController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Altura (cm)'),
+                  validator: (value) => value == null || value.isEmpty ? 'Informe sua altura' : null,
+                ),
+                TextFormField(
+                  controller: _pesoController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Peso (kg)'),
+                  validator: (value) => value == null || value.isEmpty ? 'Informe seu peso' : null,
+                ),
+                TextFormField(
+                  controller: _idadeController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Idade'),
+                  validator: (value) => value == null || value.isEmpty ? 'Informe sua idade' : null,
+                ),
+                DropdownButtonFormField<String>(
+                  value: _sexo,
+                  items: ['Masculino', 'Feminino'].map((sexo) {
+                    return DropdownMenuItem(value: sexo, child: Text(sexo));
+                  }).toList(),
+                  onChanged: (value) => setState(() => _sexo = value!),
+                  decoration: const InputDecoration(labelText: 'Sexo'),
+                ),
+                DropdownButtonFormField<int>(
+                  value: _diasSemana,
+                  items: List.generate(7, (index) => index + 1).map((dias) {
+                    return DropdownMenuItem(value: dias, child: Text('$dias dias/semana'));
+                  }).toList(),
+                  onChanged: (value) => setState(() => _diasSemana = value!),
+                  decoration: const InputDecoration(labelText: 'Dias disponíveis por semana'),
+                ),
+                DropdownButtonFormField<String>(
+                  value: _objetivo,
+                  items: ['Ganho de massa', 'Emagrecimento', 'Condicionamento'].map((obj) {
+                    return DropdownMenuItem(value: obj, child: Text(obj));
+                  }).toList(),
+                  onChanged: (value) => setState(() => _objetivo = value!),
+                  decoration: const InputDecoration(labelText: 'Objetivo'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.auto_fix_high),
+                  label: const Text('Gerar Ficha com IA'),
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      // Aqui vai a chamada para a IA
+                      print('Altura: ${_alturaController.text}');
+                      print('Peso: ${_pesoController.text}');
+                      print('Idade: ${_idadeController.text}');
+                      print('Sexo: $_sexo');
+                      print('Dias: $_diasSemana');
+                      print('Objetivo: $_objetivo');
+                    }
+                  },
+                )
+              ],
+            ),
+          )
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyState(BuildContext context) {
@@ -56,16 +142,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildWorkoutList(BuildContext context, List<Workout> workouts) {
-    return ListView.builder(
-      itemCount: workouts.length,
-      itemBuilder: (context, index) {
-        final workout = workouts[index];
-        return _buildWorkoutCard(context, workout);
-      },
     );
   }
 
@@ -161,6 +237,15 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildWorkoutList(BuildContext context, List<Workout> workouts) {
+    return ListView.builder(
+      itemCount: workouts.length,
+      itemBuilder: (context, index) {
+        return _buildWorkoutCard(context, workouts[index]);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final workouts = Provider.of<WorkoutModel>(context).workouts;
@@ -179,7 +264,17 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: workouts.isEmpty ? _buildEmptyState(context) : _buildWorkoutList(context, workouts),
+      body: Column(
+        children: [
+          _buildAIForm(context),
+          const SizedBox(height: 10),
+          Expanded(
+            child: workouts.isEmpty
+                ? _buildEmptyState(context)
+                : _buildWorkoutList(context, workouts),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -36,27 +36,32 @@ class _WorkoutProgressScreenState extends State<WorkoutProgressScreen> {
     super.dispose();
   }
 
-  void _addSet(WorkoutExercise exercise, double weight, int reps, int restTime) {
+  void _addSet(WorkoutExercise exercise) {
+    final workoutModel = Provider.of<WorkoutModel>(context, listen: false);
+    final newSetNumber = exercise.sets.length + 1;
+
+    // Busca os dados históricos para este número de série
+    final historicalSet = workoutModel.getLastSetData(exercise.exercise.name, newSetNumber);
+
     setState(() {
-      final newSet = WorkoutSet(
-        value: weight,
-        reps: reps,
-        restTime: restTime,
+      final newSet = historicalSet ?? WorkoutSet(
+        value: 0,
+        reps: 0,
+        restTime: 0,
       );
 
       _currentWorkout = _currentWorkout.copyWith(
         exercises: _currentWorkout.exercises.map((e) {
-          if (e.exercise.name == exercise.exercise.name &&
-              e.exercise.muscleGroup == exercise.exercise.muscleGroup) {
+          if (e.exercise.name == exercise.exercise.name) {
             return e.copyWith(sets: [...e.sets, newSet]);
           }
           return e;
         }).toList(),
       );
 
-      // Inicia o timer quando adiciona uma nova série
+      // Inicia o timer se for uma série subsequente
       if (exercise.sets.isNotEmpty) {
-        _startRestTimer(exercise.sets.length - 1, restTime);
+        _startRestTimer(exercise.sets.length, newSet.restTime);
       }
     });
   }
@@ -75,6 +80,21 @@ class _WorkoutProgressScreenState extends State<WorkoutProgressScreen> {
         timer.cancel();
         _onRestComplete();
       }
+    });
+  }
+
+  void _removeSet(WorkoutExercise exercise, int index) {
+    setState(() {
+      _currentWorkout = _currentWorkout.copyWith(
+        exercises: _currentWorkout.exercises.map((e) {
+          if (e.exercise.name == exercise.exercise.name) {
+            final newSets = List<dynamic>.from(e.sets);
+            newSets.removeAt(index);
+            return e.copyWith(sets: newSets);
+          }
+          return e;
+        }).toList(),
+      );
     });
   }
 
@@ -152,6 +172,11 @@ class _WorkoutProgressScreenState extends State<WorkoutProgressScreen> {
                         fontSize: 16),
                   ),
                   const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    onPressed: () => _removeSet(exercise, index),
+                    tooltip: 'Remover série',
+                  ),
                   if (_activeRestTimerIndex == index)
                     _buildRestTimerChip(),
                 ],
@@ -200,8 +225,6 @@ class _WorkoutProgressScreenState extends State<WorkoutProgressScreen> {
   }
 
   Widget _buildAddSeriesButton(WorkoutExercise exercise) {
-    final lastSet = exercise.sets.isNotEmpty ? exercise.sets.last as WorkoutSet : null;
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: ElevatedButton.icon(
@@ -210,16 +233,8 @@ class _WorkoutProgressScreenState extends State<WorkoutProgressScreen> {
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 50),
           backgroundColor: Colors.green[800],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 12),
         ),
-        onPressed: () {
-          if (lastSet != null) {
-            _addSet(exercise, lastSet.value, lastSet.reps, lastSet.restTime);
-          }
-        },
+        onPressed: () => _addSet(exercise),
       ),
     );
   }
